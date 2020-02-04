@@ -1,6 +1,5 @@
 #! /bin/bash
 
-set -e
 set -o pipefail
 
 : ${1?"Pass parent directory as first argument!"}
@@ -8,8 +7,8 @@ imgdir=$1
 outdir=${2:-$imgdir}
 
 # result="image"
-result="zipfile"
-# result="folder"
+# result="zipfile"
+result="folder"
 
 
 samdisk()
@@ -36,17 +35,25 @@ for fluxfile in "$imgdir"/*.scp; do
   # macOS uses .img extension for this format
   img_sam_ext="${outdir}/${name}.raw"
   img_mac_ext="${outdir}/${name}.img"
+  err_log_file="${outdir}/${name}.log"
   
-  samdisk copy "$fluxfile" "$img_sam_ext"
+  if ! (samdisk copy "$fluxfile" "$img_sam_ext" --log="$err_log_file"); then
+    continue
+  fi
+  if [ $(wc -l < "$err_log_file") -le 2 ]; then
+    rm "$err_log_file"
+  fi
+  
   mv "$img_sam_ext" "$img_mac_ext"
   
   if [ "$result" = "image" ]; then
     continue
   fi
   
-  mounted_img=$(attach "$img_mac_ext")
-  echo "mi: $? $mounted_img"
-  #ls -l "$mounted_img"
+  if ! mounted_img=$(attach "$img_mac_ext"); then
+    >&2 echo "Failed to process ${name}"
+    continue
+  fi
   
   if [ "$result" = "zipfile" ]; then
     (
